@@ -1,5 +1,27 @@
+From http://itasoftware.com/careers/work-at-ita/hiring-puzzles.html?catid=114
+
+BitVector Genealogy
+
+The BitVectors are an ancient and immortal race of 10,000, each with a
+10,000 bit genome. The race evolved from a single individual by the
+following process: 9,999 times a BitVector chosen at random from
+amongst the population was cloned using an error-prone process that
+considers each bit independently, and flips it with 20% probability.
+
+Write a program to guess the reproductive history of BitVectors from
+their genetic material. The randomly-ordered file
+bitvectors-genes.data.gz contains a 10,000 bit line for each
+individual. Your program's output should be, for each input line, the
+0-based line number of that individual's parent, or -1 if it is the
+progenitor. Balance performance against probability of mistakes as you
+see fit.
+
+To help you test your program, here is a much smaller 500 x 500 input
+dataset:bitvectors-genes.data.small.gz, along with its solution file:
+bitvectors-parents.data.small.
+
 > {-# OPTIONS -XNoMonomorphismRestriction -XScopedTypeVariables #-}
-> module Main where
+> module BitVector where
 > import Random hiding (next)
 > import Control.Monad
 > import Data.List
@@ -11,13 +33,13 @@
 > import qualified Data.Map as M
 > import qualified Data.Set as S
 
-> type Allel = Int
+> type Allel = Bool
 > type Genom = [Allel]
 
 > (|==>) = (TSC.==>)
 
 > gen :: Int -> IO Genom
-> gen n = sequence . replicate n . randomRIO $ (0,1)
+> gen n = liftM (map (==(1::Int))) . sequence . replicate n . randomRIO $ (0,1)
 
 > data Edge v = Edge v v deriving Show
 > unedge (Edge v w) = [v,w]
@@ -44,10 +66,14 @@
 >                         (S.size e)
 >
 >     where pairs v' = S.fromList . map nf $ zipWith Edge (init v') (tail v')
->           vs = cycles . S.toList $ v
->           found = S.size $ S.intersection (S.unions . map pairs $ vs) e
-> cycles v = map (take n) . take n . tails $ (v ++ v)
-> prop_cycles l = length (cycles l) == length (l)
+>           vs = map (\i -> (sortBy (compare `on` cycled i)) . S.toList $ v) [0 .. length (S.findMin v) - 1]
+>           found = S.size $ S.intersection (S.unions . map pairs $ vs) (S.map nf e)
+> cycles v = init $ zipWith (++) (tails v) (inits v)
+> cycled i v = drop i v ++ take i v
+
+> prop_cycles_length (l::[Int]) = length (cycles l) == length (l)
+> prop_cycles_elements (l::[Int]) = (not . null $ l) ==> elem l (cycles l)
+> prop_cycles_equal (l::[Int]) = all (sort l==) . map sort . cycles $ l
 
 > mutateN = mapM (mutate1 1 5)
 
@@ -57,7 +83,7 @@
 > mutate1 :: Int -> Int -> Allel -> IO Allel
 > mutate1 p q i = do x <- randomRIO (0, q - 1)
 >                    return $ (if x < p
->                              then (1-)
+>                              then not
 >                              else id) i
 
 > choose :: [a] -> IO a
@@ -92,7 +118,7 @@ mapM (choose [0 1]) [0..]
 >                   
 
 > display = mapM putStrLn . map (concat . map show)
-> n = 80
+> n = 500
 
 > reps :: Monad m => Int -> m a -> m [a]
 > reps num op = sequence . replicate num $ op
@@ -101,11 +127,11 @@ mapM (choose [0 1]) [0..]
 >     where avg x = (sum x / fromIntegral (length x))
 
 > v (Graph v' _) = v'
-> main = do return ()
+> maim = do return ()
 >           g <- annotMake n
 >           -- display . S.toList . v $ g
 >           print . checkSort $ g
->           rep n n >>= print
+>           -- rep n n >>= print
 >           
 >           -- display =<< shuffle =<< make n
 
